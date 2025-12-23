@@ -25,6 +25,8 @@
             color: var(--ink);
             overflow: hidden;
             margin: 0;
+            height: 100vh;
+            width: 100vw;
         }
         h1, h2, h3, .serif { font-family: 'Cormorant Garamond', serif; }
         
@@ -40,7 +42,7 @@
         }
 
         .node-group circle { transition: all 0.3s ease; }
-        .node-group:hover circle:not(.marriage-ring-bg) { transform: scale(1.1); stroke-width: 4px; }
+        .node-group:hover circle:not(.marriage-ring-bg) { transform: scale(1.05); stroke-width: 4px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
 
         #app-container { height: 100vh; width: 100vw; position: relative; }
         .hidden { display: none !important; }
@@ -119,7 +121,7 @@
             <div id="svg-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
 
             <footer class="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none z-20">
-                <div class="bg-[#2d2416]/90 text-white px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md shadow-2xl border border-white/10">
+                <div class="bg-[#2d2416]/90 text-white px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md shadow-2xl border border-white/10 text-center whitespace-nowrap">
                     Navigér ved at trække & zoome • Tryk på navne for detaljer
                 </div>
             </footer>
@@ -331,18 +333,18 @@
             const container = document.getElementById('svg-container');
             container.innerHTML = '';
             
-            const width = 6000;
-            const height = 3000;
-            const margin = { top: 200, right: 300, bottom: 200, left: 300 };
-
             const svg = d3.select(container).append('svg')
                 .attr('width', '100%')
                 .attr('height', '100%')
-                .attr('viewBox', `0 0 ${width} ${height}`);
+                .style('display', 'block');
 
+            const defs = svg.append('defs');
             const gMain = svg.append('g');
+            
+            // Focus logic: root node is at (0, 0) in tree layout.
+            // We want (0, 0) to be at (containerWidth / 2, padding).
             const zoom = d3.zoom()
-                .scaleExtent([0.05, 3])
+                .scaleExtent([0.05, 8])
                 .on('zoom', (event) => gMain.attr('transform', event.transform));
             
             svg.call(zoom);
@@ -354,10 +356,31 @@
             const treeLayout = d3.tree().nodeSize([450, 500]);
             treeLayout(root);
 
+            // Setup Patterns for photos
+            root.descendants().forEach(d => {
+                const p = d.data.descendant;
+                const sp = d.data.partner;
+                
+                [p, sp].forEach(person => {
+                    if (person && customPhotos[person.id]) {
+                        const diameter = person.id === p.id ? 70 : 60;
+                        defs.append('pattern')
+                            .attr('id', `pattern-${person.id}`)
+                            .attr('patternUnits', 'objectBoundingBox')
+                            .attr('width', 1)
+                            .attr('height', 1)
+                            .append('image')
+                            .attr('xlink:href', customPhotos[person.id])
+                            .attr('width', diameter)
+                            .attr('height', diameter)
+                            .attr('preserveAspectRatio', 'xMidYMid slice');
+                    }
+                });
+            });
+
             const linkGen = d3.linkVertical().x(d => d.x).y(d => d.y);
             
             gMain.append('g')
-                .attr('transform', `translate(${width/2}, ${margin.top})`)
                 .selectAll('path')
                 .data(root.links())
                 .enter().append('path')
@@ -365,7 +388,6 @@
                 .attr('d', linkGen);
 
             const nodes = gMain.append('g')
-                .attr('transform', `translate(${width/2}, ${margin.top})`)
                 .selectAll('.node-group')
                 .data(root.descendants())
                 .enter().append('g')
@@ -379,7 +401,10 @@
 
             descNode.append('circle')
                 .attr('r', 35)
-                .style('fill', d => d.data.descendant.deathDate ? '#e5e1d8' : '#fff')
+                .style('fill', d => {
+                    const id = d.data.descendant.id;
+                    return customPhotos[id] ? `url(#pattern-${id})` : (d.data.descendant.deathDate ? '#e5e1d8' : '#fff');
+                })
                 .style('stroke', '#d4af37')
                 .style('stroke-width', '3px');
 
@@ -404,7 +429,10 @@
 
             spouseNode.append('circle')
                 .attr('r', 30)
-                .style('fill', d => d.data.partner.deathDate ? '#f0eee9' : '#fff')
+                .style('fill', d => {
+                    const id = d.data.partner.id;
+                    return customPhotos[id] ? `url(#pattern-${id})` : (d.data.partner.deathDate ? '#f0eee9' : '#fff');
+                })
                 .style('stroke', '#8b7355').style('stroke-opacity', '0.6').style('stroke-width', '2px');
 
             spouseNode.append('text')
@@ -427,8 +455,14 @@
             ringGroup.append('text')
                 .attr('dy', '6').attr('text-anchor', 'middle').style('font-size', '16px').text('💍');
 
-            // Initial center
-            svg.call(zoom.transform, d3.zoomIdentity.translate(width/2 - 100, 150).scale(0.35));
+            // --- FOCUS ON HEAD NODE ---
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            const initialScale = 0.8;
+            const tX = containerWidth / 2;
+            const tY = 150; 
+
+            svg.call(zoom.transform, d3.zoomIdentity.translate(tX, tY).scale(initialScale));
         }
 
         // --- MODAL LOGIC ---
@@ -524,14 +558,12 @@
         function getParentText(member) {
             if (!member.parentId) return null;
             const prefix = member.gender === 'male' ? 'Søn af' : (member.gender === 'female' ? 'Datter af' : 'Barn af');
-            
             const marriage = getMarriage(member.parentId);
             if (marriage) {
                 const h = getMember(marriage.husbandId);
                 const w = getMember(marriage.wifeId);
                 return `${prefix} ${h?.name || '?'} & ${w?.name || '?'}`;
             }
-            
             const solo = getMember(member.parentId);
             return solo ? `${prefix} ${solo.name}` : null;
         }
@@ -543,8 +575,8 @@
                 reader.onloadend = () => {
                     customPhotos[memberId] = reader.result;
                     localStorage.setItem('christensen_photos', JSON.stringify(customPhotos));
-                    showMemberModal(getMember(memberId)); // Refresh
-                    renderTree(); // Refresh tree view background
+                    showMemberModal(getMember(memberId)); // Refresh modal
+                    renderTree(); // Refresh tree to show photo in circle
                 };
                 reader.readAsDataURL(file);
             }
