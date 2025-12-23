@@ -19,10 +19,15 @@ const App: React.FC = () => {
   const childrenOfRoot = MEMBERS.filter(m => m.parentId === 'U0');
 
   useEffect(() => {
+    console.log("App startet - starter foto-synkronisering...");
     const unsubscribe = subscribeToPhotos((photos) => {
-      setCustomPhotos(photos);
+      console.log("Nye fotos modtaget fra databasen:", Object.keys(photos).length);
+      setCustomPhotos(prev => ({ ...prev, ...photos }));
     });
-    return () => unsubscribe();
+    return () => {
+      console.log("Afbryder foto-synkronisering.");
+      unsubscribe();
+    };
   }, []);
 
   const closeModals = () => {
@@ -54,7 +59,9 @@ const App: React.FC = () => {
 
     try {
       setIsUploading(true);
-      await uploadMemberPhoto(id, file);
+      const url = await uploadMemberPhoto(id, file);
+      // Opdater lokalt med det samme for hurtig feedback
+      setCustomPhotos(prev => ({ ...prev, [id]: url }));
     } catch (error) {
       console.error("Upload error:", error);
       alert("Fejl ved upload: " + (error instanceof Error ? error.message : "Ukendt fejl"));

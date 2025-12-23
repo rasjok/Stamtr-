@@ -2,7 +2,7 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
 import { getFirestore } from 'firebase/firestore';
 
-// Sikker adgang til miljøvariable, så appen ikke crasher hvis import.meta.env mangler
+// Sikker adgang til miljøvariable
 const env = (import.meta as any).env || {};
 
 const firebaseConfig = {
@@ -20,9 +20,12 @@ let app;
 try {
   if (isConfigValid) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    console.log("Firebase initialiseret succesfuldt.");
+  } else {
+    console.warn("Firebase konfiguration mangler - tjek dine miljøvariable.");
   }
 } catch (e) {
-  console.warn("Firebase initialization skipped or failed:", e);
+  console.error("Fejl under Firebase initialisering:", e);
 }
 
 export const isFirebaseEnabled = !!app;
