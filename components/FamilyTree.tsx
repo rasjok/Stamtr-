@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { FamilyMember, Marriage, FamilyUnitNode } from '../types';
+import { FamilyMember, Marriage, FamilyUnitNode } from '../types.ts';
 
 interface FamilyTreeProps {
   members: FamilyMember[];

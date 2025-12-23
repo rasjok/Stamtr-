@@ -1,5 +1,4 @@
-
-import { FamilyMember, Marriage } from './types';
+import { FamilyMember, Marriage } from './types.ts';
 
 export const MARRIAGES: Marriage[] = [
   { id: 'U0', husbandId: 'martin', wifeId: 'helga', date: '08.02.1928', location: 'Testrup', status: 'Ophørte ved død' },

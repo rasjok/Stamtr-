@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FamilyMember, Marriage } from './types';
-import { MEMBERS, MARRIAGES } from './constants';
-import FamilyTree from './components/FamilyTree';
-import LandingPage from './components/LandingPage';
-import { uploadMemberPhoto, subscribeToPhotos } from './services/photoService';
-import { isFirebaseEnabled } from './firebaseConfig';
+import { FamilyMember, Marriage } from './types.ts';
+import { MEMBERS, MARRIAGES } from './constants.ts';
+import FamilyTree from './components/FamilyTree.tsx';
+import LandingPage from './components/LandingPage.tsx';
+import { uploadMemberPhoto, subscribeToPhotos } from './services/photoService.ts';
+import { isFirebaseEnabled } from './firebaseConfig.ts';
 
 type ViewMode = 'landing' | 'full' | 'branch';
 

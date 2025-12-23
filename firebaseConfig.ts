@@ -2,25 +2,16 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
 import { getFirestore } from 'firebase/firestore';
 
-const getEnv = (key: string) => {
-  // Safe check for process and import.meta to prevent ReferenceErrors in browser
-  if (typeof process !== 'undefined' && process.env && process.env[key]) {
-    return process.env[key];
-  }
-  const meta = (import.meta as any);
-  if (meta.env && meta.env[key]) {
-    return meta.env[key];
-  }
-  return '';
-};
+// Sikker adgang til miljøvariable, så appen ikke crasher hvis import.meta.env mangler
+const env = (import.meta as any).env || {};
 
 const firebaseConfig = {
-  apiKey: getEnv('VITE_FIREBASE_API_KEY'),
-  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN'),
-  projectId: getEnv('VITE_FIREBASE_PROJECT_ID'),
-  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET'),
-  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
-  appId: getEnv('VITE_FIREBASE_APP_ID')
+  apiKey: env.VITE_FIREBASE_API_KEY,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: env.VITE_FIREBASE_APP_ID
 };
 
 const isConfigValid = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
@@ -31,7 +22,7 @@ try {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   }
 } catch (e) {
-  console.error("Firebase initialization failed:", e);
+  console.warn("Firebase initialization skipped or failed:", e);
 }
 
 export const isFirebaseEnabled = !!app;

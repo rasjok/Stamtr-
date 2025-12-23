@@ -1,7 +1,6 @@
-
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
-import { storage, db, isFirebaseEnabled } from '../firebaseConfig';
+import { storage, db, isFirebaseEnabled } from '../firebaseConfig.ts';
 
 /**
  * Uploads a file to Firebase Storage and stores the URL in Firestore.

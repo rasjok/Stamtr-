@@ -59,6 +59,7 @@
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
     "d3": "https://esm.sh/d3@7.9.0",
     "firebase/app": "https://esm.sh/firebase@10.8.0/app",
     "firebase/firestore": "https://esm.sh/firebase@10.8.0/firestore",
@@ -75,8 +76,9 @@
 <body>
     <div class="parchment-overlay"></div>
     <div id="app-container">
-        <div class="flex items-center justify-center h-screen w-screen text-[#8b7355] font-serif italic text-xl">
-            Indlæser stamtræet...
+        <div class="flex items-center justify-center h-screen w-screen text-[#8b7355] font-serif italic text-xl text-center p-8">
+            Indlæser stamtræet...<br/>
+            <span class="text-sm opacity-50 mt-2 block font-sans not-italic">Sørg for at din browser understøtter ES Modules</span>
         </div>
     </div>
     <script type="module" src="./index.tsx"></script>
