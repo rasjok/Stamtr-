@@ -1,11 +1,11 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { FamilyMember } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Always initialize the client using the apiKey named parameter and the required environment variable.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateBiography = async (member: FamilyMember, context: FamilyMember[]) => {
-  const ai = getAI();
   const prompt = `
     Write a beautiful, engaging 200-word biography for ${member.name}.
     Current known facts:
@@ -27,6 +27,7 @@ export const generateBiography = async (member: FamilyMember, context: FamilyMem
         thinkingConfig: { thinkingBudget: 0 }
       }
     });
+    // Access the generated text directly using the .text property.
     return response.text || "Failed to generate biography.";
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -35,7 +36,6 @@ export const generateBiography = async (member: FamilyMember, context: FamilyMem
 };
 
 export const suggestMissingConnections = async (members: FamilyMember[]) => {
-  const ai = getAI();
   const dataString = JSON.stringify(members);
   
   const prompt = `
@@ -50,6 +50,7 @@ export const suggestMissingConnections = async (members: FamilyMember[]) => {
       model: "gemini-3-flash-preview",
       contents: prompt
     });
+    // Access the generated text directly using the .text property.
     return response.text || "No insights found.";
   } catch (error) {
     console.error("Gemini Error:", error);

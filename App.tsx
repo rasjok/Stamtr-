@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { FamilyMember, Marriage } from './types';
 import { MEMBERS, MARRIAGES } from './constants';
 import FamilyTree from './components/FamilyTree';
 import LandingPage from './components/LandingPage';
-import { uploadPhoto, loadAllPhotos } from './firebaseConfig';
+import { uploadMemberPhoto, subscribeToPhotos } from './services/photoService';
 
 type ViewMode = 'landing' | 'full' | 'branch';
 
@@ -13,32 +14,17 @@ const App: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [selectedMarriage, setSelectedMarriage] = useState<Marriage | null>(null);
   const [customPhotos, setCustomPhotos] = useState<Record<string, string>>({});
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Helga and Martin's children are the main branches
-  // Root marriage is U0
   const childrenOfRoot = MEMBERS.filter(m => m.parentId === 'U0');
 
-  // CHANGED: Load photos from Firebase instead of localStorage
   useEffect(() => {
-    const loadPhotos = async () => {
-      try {
-        const memberIds = MEMBERS.map(m => m.id);
-        const photos = await loadAllPhotos(memberIds);
-        setCustomPhotos(photos);
-        console.log(`Loaded ${Object.keys(photos).length} photos from Firebase`);
-      } catch (error) {
-        console.error('Error loading photos:', error);
-        // Fallback to localStorage if Firebase fails
-        const saved = localStorage.getItem('christensen_photos');
-        if (saved) {
-          setCustomPhotos(JSON.parse(saved));
-          console.log('Loaded photos from localStorage backup');
-        }
-      }
-    };
-
-    loadPhotos();
+    // Subscribe to cloud updates. When anyone uploads a photo, everyone sees it.
+    const unsubscribe = subscribeToPhotos((photos) => {
+      setCustomPhotos(photos);
+    });
+    return () => unsubscribe();
   }, []);
 
   const closeModals = () => {
@@ -60,45 +46,19 @@ const App: React.FC = () => {
     return null;
   };
 
-  // CHANGED: Upload to Firebase instead of localStorage
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Vælg venligst en billedfil');
-      return;
-    }
-
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Billedet er for stort. Maksimal størrelse er 5MB.');
-      return;
-    }
-
-    setUploadingPhoto(true);
-
-    try {
-      // Upload to Firebase Storage
-      const photoURL = await uploadPhoto(file, id);
-      
-      // Update state with new photo URL
-      setCustomPhotos(prev => ({
-        ...prev,
-        [id]: photoURL
-      }));
-
-      // Also save to localStorage as backup
-      const updated = { ...customPhotos, [id]: photoURL };
-      localStorage.setItem('christensen_photos', JSON.stringify(updated));
-
-      console.log(`Photo uploaded successfully for ${id}`);
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      alert('Der opstod en fejl ved upload af billedet. Prøv venligst igen.');
-    } finally {
-      setUploadingPhoto(false);
+    if (file) {
+      try {
+        setIsUploading(true);
+        // Upload to Firebase Storage + Metadata to Firestore
+        await uploadMemberPhoto(id, file);
+      } catch (error) {
+        console.error("Error uploading photo:", error);
+        alert("Der skete en fejl under upload af billedet til skyen.");
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -176,25 +136,21 @@ const App: React.FC = () => {
                         />
                     ) : (
                         <div className="w-full h-full bg-gray-100 flex items-center justify-center rounded-full">
-                            <svg className="w-16 h-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                            {isUploading ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d4af37]"></div>
+                                <span className="text-[8px] font-bold text-[#8b7355] uppercase">Skyer...</span>
+                              </div>
+                            ) : (
+                              <svg className="w-16 h-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                            </svg>
+                              </svg>
+                            )}
                         </div>
                     )}
-                    {/* CHANGED: Show uploading state */}
-                    <label className={`absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full ${uploadingPhoto ? 'opacity-100' : ''}`}>
-                        {uploadingPhoto ? (
-                          <span className="text-[10px] font-bold uppercase">Uploader...</span>
-                        ) : (
-                          <span className="text-[10px] font-bold uppercase">Upload Foto</span>
-                        )}
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="hidden" 
-                          onChange={(e) => handleFileUpload(e, selectedMember.id)}
-                          disabled={uploadingPhoto}
-                        />
+                    <label className="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
+                        <span className="text-[10px] font-bold uppercase">{isUploading ? 'Uploader...' : 'Upload Foto'}</span>
+                        <input type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={(e) => handleFileUpload(e, selectedMember.id)} />
                     </label>
                   </div>
                   
