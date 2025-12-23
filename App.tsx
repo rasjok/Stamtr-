@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { FamilyMember, Marriage } from './types';
 import { MEMBERS, MARRIAGES } from './constants';
 import FamilyTree from './components/FamilyTree';
 import LandingPage from './components/LandingPage';
+import { uploadPhoto, loadAllPhotos } from './firebaseConfig';
 
 type ViewMode = 'landing' | 'full' | 'branch';
 
@@ -13,21 +13,33 @@ const App: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [selectedMarriage, setSelectedMarriage] = useState<Marriage | null>(null);
   const [customPhotos, setCustomPhotos] = useState<Record<string, string>>({});
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Helga and Martin's children are the main branches
   // Root marriage is U0
   const childrenOfRoot = MEMBERS.filter(m => m.parentId === 'U0');
 
+  // CHANGED: Load photos from Firebase instead of localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('christensen_photos');
-    if (saved) setCustomPhotos(JSON.parse(saved));
-  }, []);
+    const loadPhotos = async () => {
+      try {
+        const memberIds = MEMBERS.map(m => m.id);
+        const photos = await loadAllPhotos(memberIds);
+        setCustomPhotos(photos);
+        console.log(`Loaded ${Object.keys(photos).length} photos from Firebase`);
+      } catch (error) {
+        console.error('Error loading photos:', error);
+        // Fallback to localStorage if Firebase fails
+        const saved = localStorage.getItem('christensen_photos');
+        if (saved) {
+          setCustomPhotos(JSON.parse(saved));
+          console.log('Loaded photos from localStorage backup');
+        }
+      }
+    };
 
-  const savePhoto = (id: string, base64: string) => {
-    const newPhotos = { ...customPhotos, [id]: base64 };
-    setCustomPhotos(newPhotos);
-    localStorage.setItem('christensen_photos', JSON.stringify(newPhotos));
-  };
+    loadPhotos();
+  }, []);
 
   const closeModals = () => {
     setSelectedMember(null);
@@ -48,12 +60,45 @@ const App: React.FC = () => {
     return null;
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
+  // CHANGED: Upload to Firebase instead of localStorage
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => savePhoto(id, reader.result as string);
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Vælg venligst en billedfil');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Billedet er for stort. Maksimal størrelse er 5MB.');
+      return;
+    }
+
+    setUploadingPhoto(true);
+
+    try {
+      // Upload to Firebase Storage
+      const photoURL = await uploadPhoto(file, id);
+      
+      // Update state with new photo URL
+      setCustomPhotos(prev => ({
+        ...prev,
+        [id]: photoURL
+      }));
+
+      // Also save to localStorage as backup
+      const updated = { ...customPhotos, [id]: photoURL };
+      localStorage.setItem('christensen_photos', JSON.stringify(updated));
+
+      console.log(`Photo uploaded successfully for ${id}`);
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Der opstod en fejl ved upload af billedet. Prøv venligst igen.');
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -136,9 +181,20 @@ const App: React.FC = () => {
                             </svg>
                         </div>
                     )}
-                    <label className="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
-                        <span className="text-[10px] font-bold uppercase">Upload Foto</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, selectedMember.id)} />
+                    {/* CHANGED: Show uploading state */}
+                    <label className={`absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full ${uploadingPhoto ? 'opacity-100' : ''}`}>
+                        {uploadingPhoto ? (
+                          <span className="text-[10px] font-bold uppercase">Uploader...</span>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase">Upload Foto</span>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => handleFileUpload(e, selectedMember.id)}
+                          disabled={uploadingPhoto}
+                        />
                     </label>
                   </div>
                   
