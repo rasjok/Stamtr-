@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { FamilyMember, Marriage } from './types';
 import { MEMBERS, MARRIAGES } from './constants';
@@ -128,7 +127,7 @@ const App: React.FC = () => {
             </button>
 
             {selectedMember && (
-              <div className="p-10">
+              <div className="p-10 max-h-[85vh] overflow-y-auto">
                 <div className="flex flex-col items-center text-center">
                   <div className="group relative w-32 h-32 rounded-full border-[5px] border-[#d4af37] p-1.5 mb-6 shadow-2xl bg-[#fdfdfd] overflow-hidden">
                     {customPhotos[selectedMember.id] ? (
@@ -162,18 +161,29 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-1 gap-4 text-left">
-                  <div>
-                    <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Fødested</h3>
-                    <p className="text-[#2d2416] text-sm font-medium italic">
-                      {selectedMember.birthPlace || "Ikke angivet"}
-                    </p>
-                  </div>
-                  {selectedMember.deathDate && (
+                <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-1 gap-6 text-left">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Hvilested</h3>
+                      <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Fødested</h3>
                       <p className="text-[#2d2416] text-sm font-medium italic">
-                        {selectedMember.burialPlace || "Ikke angivet"}
+                        {selectedMember.birthPlace || "Ikke angivet"}
+                      </p>
+                    </div>
+                    {selectedMember.deathDate && (
+                      <div>
+                        <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Hvilested</h3>
+                        <p className="text-[#2d2416] text-sm font-medium italic">
+                          {selectedMember.burialPlace || "Ikke angivet"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedMember.bio && (
+                    <div>
+                      <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Biografi / Noter</h3>
+                      <p className="text-[#2d2416] text-sm leading-relaxed serif italic">
+                        {selectedMember.bio}
                       </p>
                     </div>
                   )}
@@ -187,7 +197,7 @@ const App: React.FC = () => {
                   <div className="w-16 h-16 bg-[#fdfbf7] rounded-full flex items-center justify-center mx-auto border border-[#d4af37] shadow-sm mb-4">
                     <span className="text-2xl">💍</span>
                   </div>
-                  <h2 className="text-3xl font-bold serif text-[#2d2416]">Slægtens Forening</h2>
+                  <h2 className="text-3xl font-bold serif text-[#2d2416]">Vielse</h2>
                 </div>
                 
                 <div className="space-y-6">
