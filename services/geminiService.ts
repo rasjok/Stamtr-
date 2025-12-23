@@ -1,59 +1,41 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { FamilyMember } from "../types";
 
-// Always initialize the client using the apiKey named parameter and the required environment variable.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe wrapper for GoogleGenAI initialization
+const getAIClient = () => {
+  const apiKey = typeof process !== 'undefined' ? process.env?.API_KEY : undefined;
+  if (!apiKey) {
+    console.warn("Gemini API Key is missing. AI features will be disabled.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const generateBiography = async (member: FamilyMember, context: FamilyMember[]) => {
+  const ai = getAIClient();
+  if (!ai) return "AI-biografi er ikke tilgængelig uden API-nøgle.";
+
   const prompt = `
-    Write a beautiful, engaging 200-word biography for ${member.name}.
-    Current known facts:
-    - Birth: ${member.birthDate || 'Unknown'}
-    - Death: ${member.deathDate || 'Present'}
-    - Known bio: ${member.bio || 'None'}
+    Skriv en smuk og personlig biografi på dansk til ${member.name} (ca. 150 ord).
+    Fakta:
+    - Født: ${member.birthDate || 'Ukendt'}
+    - Død: ${member.deathDate || 'Nulevende'}
+    - Sted: ${member.birthPlace || 'Ukendt'}
     
-    Context about relatives in the tree:
-    ${context.filter(m => m.id !== member.id).map(m => `- ${m.name} (Relationship: ${m.parentId === member.id ? 'Child' : m.id === member.parentId ? 'Parent' : 'Relative'})`).join('\n')}
+    Kontekst i familien:
+    ${context.filter(m => m.id !== member.id).slice(0, 5).map(m => `- ${m.name}`).join('\n')}
     
-    Make the story feel warm and personal, suitable for a family heirloom.
+    Gør fortællingen levende og varm.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 0 }
-      }
     });
-    // Access the generated text directly using the .text property.
-    return response.text || "Failed to generate biography.";
+    return response.text || "Kunne ikke generere biografi.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Error connecting to AI service.";
-  }
-};
-
-export const suggestMissingConnections = async (members: FamilyMember[]) => {
-  const dataString = JSON.stringify(members);
-  
-  const prompt = `
-    Analyze this family tree data and suggest potential historical contexts or missing research directions:
-    ${dataString}
-    
-    Provide a bulleted list of insights.
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt
-    });
-    // Access the generated text directly using the .text property.
-    return response.text || "No insights found.";
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Failed to analyze tree.";
+    return "Der skete en fejl under genereringen af biografien.";
   }
 };

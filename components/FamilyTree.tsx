@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { FamilyMember, Marriage, FamilyUnitNode } from '../types';
@@ -9,7 +8,7 @@ interface FamilyTreeProps {
   customPhotos: Record<string, string>;
   onSelectMember: (member: FamilyMember) => void;
   onSelectMarriage: (marriage: Marriage) => void;
-  rootId?: string; // New prop to start tree from a specific person
+  rootId?: string;
 }
 
 const FamilyTree: React.FC<FamilyTreeProps> = ({ 
@@ -25,17 +24,21 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
   useEffect(() => {
     if (!svgRef.current || members.length === 0) return;
 
-    const width = 6000;
-    const height = 2500;
-    const margin = { top: 200, right: 300, bottom: 200, left: 300 };
+    // Get current container size
+    const bounds = svgRef.current.getBoundingClientRect();
+    const svgWidth = bounds.width;
+    const svgHeight = bounds.height;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
+    const defs = svg.append("defs");
     const gMain = svg.append("g");
+
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.05, 3])
       .on("zoom", (event) => gMain.attr("transform", event.transform));
+    
     svg.call(zoom);
 
     const buildHierarchy = (descendantId: string): FamilyUnitNode => {
@@ -70,13 +73,38 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
     if (!rootData) return;
 
     const root = d3.hierarchy(rootData);
+    // Large spacing for a classic family tree look
     const treeLayout = d3.tree<FamilyUnitNode>().nodeSize([450, 500]); 
     treeLayout(root);
 
+    // Create patterns for photos
+    root.descendants().forEach(d => {
+      const p = d.data.descendant;
+      const sp = d.data.partner;
+      
+      [p, sp].forEach(person => {
+        if (person && customPhotos[person.id]) {
+          const diameter = person.id === p.id ? 70 : 60;
+          defs.append('pattern')
+            .attr('id', `pattern-${person.id}`)
+            .attr('patternUnits', 'objectBoundingBox')
+            .attr('width', 1)
+            .attr('height', 1)
+            .append('image')
+            .attr('xlink:href', customPhotos[person.id])
+            .attr('width', diameter)
+            .attr('height', diameter)
+            .attr('preserveAspectRatio', 'xMidYMid slice');
+        }
+      });
+    });
+
     const linkGen = d3.linkVertical<any, any>().x(d => d.x).y(d => d.y);
     
-    gMain.append("g")
-      .attr("transform", `translate(${margin.left}, ${margin.top})`)
+    // We remove the static translation from gMain and let zoom handle it
+    const gContent = gMain.append("g");
+
+    gContent.append("g")
       .selectAll("path")
       .data(root.links())
       .enter()
@@ -84,8 +112,7 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
       .attr("class", "link")
       .attr("d", linkGen as any);
 
-    const nodes = gMain.append("g")
-      .attr("transform", `translate(${margin.left}, ${margin.top})`)
+    const nodes = gContent.append("g")
       .selectAll(".node-group")
       .data(root.descendants())
       .enter()
@@ -93,13 +120,17 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
       .attr("class", "node-group")
       .attr("transform", d => `translate(${d.x},${d.y})`);
 
+    // Main Person
     const descNode = nodes.append("g")
       .style("cursor", "pointer")
       .on("click", (e, d) => onSelectMember(d.data.descendant));
 
     descNode.append("circle")
       .attr("r", 35)
-      .style("fill", d => d.data.descendant.deathDate ? "#e5e1d8" : "#fff")
+      .style("fill", d => {
+        const id = d.data.descendant.id;
+        return customPhotos[id] ? `url(#pattern-${id})` : (d.data.descendant.deathDate ? "#e5e1d8" : "#fff");
+      })
       .style("stroke", "#d4af37")
       .style("stroke-width", "3px");
 
@@ -110,6 +141,7 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
       .style("fill", "#2d2416")
       .text(d => d.data.descendant.name);
 
+    // Partner/Spouse
     const partnerNodes = nodes.filter(d => !!d.data.partner);
     
     partnerNodes.append("line")
@@ -128,7 +160,10 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
 
     spouseNode.append("circle")
       .attr("r", 30)
-      .style("fill", d => d.data.partner?.deathDate ? "#f0eee9" : "#fff")
+      .style("fill", d => {
+        const id = d.data.partner?.id;
+        return id && customPhotos[id] ? `url(#pattern-${id})` : (d.data.partner?.deathDate ? "#f0eee9" : "#fff");
+      })
       .style("stroke", "#8b7355")
       .style("stroke-opacity", "0.6")
       .style("stroke-width", "2px");
@@ -146,6 +181,7 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
 
     marriageRingGroup.append("circle")
       .attr("r", 14)
+      .attr("class", "marriage-ring-bg")
       .style("fill", "#fff")
       .style("stroke", "#d4af37")
       .style("stroke-width", "1px")
@@ -157,7 +193,14 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
       .style("font-size", "16px")
       .text("💍");
 
-    svg.call(zoom.transform, d3.zoomIdentity.translate(width/2 - 500, 150).scale(0.35));
+    // DYNAMIC CENTERING: Calculate the transform to center the root node
+    const initialScale = 0.4;
+    const initialTransform = d3.zoomIdentity
+      .translate(svgWidth / 2, 120) // Center horizontally, 120px from top
+      .scale(initialScale)
+      .translate(-root.x, -root.y); // Shift so the root is at the target point
+
+    svg.call(zoom.transform, initialTransform);
 
   }, [members, marriages, customPhotos, rootId]);
 

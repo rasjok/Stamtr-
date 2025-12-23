@@ -1,21 +1,20 @@
 
-import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-import { doc, setDoc, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
-import { storage, db } from '../firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
+import { storage, db, isFirebaseEnabled } from '../firebaseConfig';
 
 /**
  * Uploads a file to Firebase Storage and stores the URL in Firestore.
  */
 export const uploadMemberPhoto = async (memberId: string, file: File): Promise<string> => {
+  if (!isFirebaseEnabled || !storage || !db) {
+    throw new Error("Firebase er ikke konfigureret korrekt.");
+  }
+
   const storageRef = ref(storage, `member_photos/${memberId}`);
-  
-  // 1. Upload the physical file
   await uploadBytes(storageRef, file);
-  
-  // 2. Get the public URL
   const downloadURL = await getDownloadURL(storageRef);
   
-  // 3. Save mapping in Firestore so all family members see it instantly
   await setDoc(doc(db, 'photos', memberId), {
     url: downloadURL,
     updatedAt: new Date().toISOString()
@@ -25,9 +24,14 @@ export const uploadMemberPhoto = async (memberId: string, file: File): Promise<s
 };
 
 /**
- * Subscribes to photo updates from Firestore to keep the local state in sync with the cloud.
+ * Subscribes to photo updates from Firestore.
  */
 export const subscribeToPhotos = (callback: (photos: Record<string, string>) => void) => {
+  if (!isFirebaseEnabled || !db) {
+    console.warn("Firebase er deaktiveret - fotos synkroniseres ikke.");
+    return () => {}; // Return dummy unsubscribe
+  }
+
   return onSnapshot(collection(db, 'photos'), (snapshot) => {
     const photoMap: Record<string, string> = {};
     snapshot.forEach((doc) => {

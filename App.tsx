@@ -5,6 +5,7 @@ import { MEMBERS, MARRIAGES } from './constants';
 import FamilyTree from './components/FamilyTree';
 import LandingPage from './components/LandingPage';
 import { uploadMemberPhoto, subscribeToPhotos } from './services/photoService';
+import { isFirebaseEnabled } from './firebaseConfig';
 
 type ViewMode = 'landing' | 'full' | 'branch';
 
@@ -16,11 +17,9 @@ const App: React.FC = () => {
   const [customPhotos, setCustomPhotos] = useState<Record<string, string>>({});
   const [isUploading, setIsUploading] = useState(false);
 
-  // Helga and Martin's children are the main branches
   const childrenOfRoot = MEMBERS.filter(m => m.parentId === 'U0');
 
   useEffect(() => {
-    // Subscribe to cloud updates. When anyone uploads a photo, everyone sees it.
     const unsubscribe = subscribeToPhotos((photos) => {
       setCustomPhotos(photos);
     });
@@ -42,23 +41,26 @@ const App: React.FC = () => {
       return `${prefix} ${h?.name || '?'} & ${w?.name || '?'}`;
     }
     const soloParent = MEMBERS.find(m => m.id === member.parentId);
-    if (soloParent) return `${prefix} ${soloParent.name}`;
-    return null;
+    return soloParent ? `${prefix} ${soloParent.name}` : null;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
     const file = e.target.files?.[0];
-    if (file) {
-      try {
-        setIsUploading(true);
-        // Upload to Firebase Storage + Metadata to Firestore
-        await uploadMemberPhoto(id, file);
-      } catch (error) {
-        console.error("Error uploading photo:", error);
-        alert("Der skete en fejl under upload af billedet til skyen.");
-      } finally {
-        setIsUploading(false);
-      }
+    if (!file) return;
+
+    if (!isFirebaseEnabled) {
+      alert("Sky-synkronisering er ikke aktiv. Tjek venligst dine Firebase-indstillinger.");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      await uploadMemberPhoto(id, file);
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Fejl ved upload: " + (error instanceof Error ? error.message : "Ukendt fejl"));
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -83,17 +85,18 @@ const App: React.FC = () => {
       <header className="absolute top-0 left-0 right-0 p-6 z-10 pointer-events-none flex justify-between items-start">
         <button 
           onClick={() => setViewMode('landing')}
-          className="pointer-events-auto bg-white/80 backdrop-blur-md px-6 py-3 rounded-full border border-[#d4c5b0] shadow-lg flex items-center gap-3 group hover:border-[#d4af37] transition-all"
+          className="pointer-events-auto bg-white/90 backdrop-blur-md px-6 py-3 rounded-full border border-[#d4c5b0] shadow-lg flex items-center gap-3 group hover:border-[#d4af37] transition-all"
         >
           <span className="text-xl group-hover:-translate-x-1 transition-transform">←</span>
-          <span className="text-[10px] font-black text-[#8b7355] uppercase tracking-widest">Tilbage til start</span>
+          <span className="text-[10px] font-black text-[#8b7355] uppercase tracking-widest">Tilbage</span>
         </button>
 
-        <div className="pointer-events-auto bg-white/80 backdrop-blur-md px-5 py-3 rounded-full border border-[#d4c5b0] shadow-lg flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-[#d4af37]"></span>
-            <span className="text-[10px] font-black text-[#8b7355] uppercase tracking-tighter">
-                {viewMode === 'full' ? 'Hele Slægten' : `Gren: ${MEMBERS.find(m => m.id === branchRootId)?.name.split(' ')[0]}`}
-            </span>
+        <div className="pointer-events-auto flex flex-col items-end gap-2">
+            <div className="bg-[#2d2416]/10 px-4 py-1.5 rounded-full border border-[#d4c5b0]/30 backdrop-blur-sm">
+                <span className="text-[9px] font-bold text-[#2d2416] uppercase">
+                    {viewMode === 'full' ? 'Hele Slægten' : `Gren: ${MEMBERS.find(m => m.id === branchRootId)?.name.split(' ')[0]}`}
+                </span>
+            </div>
         </div>
       </header>
 
@@ -110,7 +113,7 @@ const App: React.FC = () => {
 
       {(selectedMember || selectedMarriage) && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-md animate-in fade-in duration-300"
+          className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-[#2d2416]/40 backdrop-blur-md animate-in fade-in duration-300"
           onClick={closeModals}
         >
           <div 
@@ -137,45 +140,40 @@ const App: React.FC = () => {
                     ) : (
                         <div className="w-full h-full bg-gray-100 flex items-center justify-center rounded-full">
                             {isUploading ? (
-                              <div className="flex flex-col items-center gap-2">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d4af37]"></div>
-                                <span className="text-[8px] font-bold text-[#8b7355] uppercase">Skyer...</span>
-                              </div>
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d4af37]"></div>
                             ) : (
-                              <svg className="w-16 h-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                              </svg>
+                              <span className="text-4xl opacity-20">👤</span>
                             )}
                         </div>
                     )}
-                    <label className="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
-                        <span className="text-[10px] font-bold uppercase">{isUploading ? 'Uploader...' : 'Upload Foto'}</span>
+                    <label className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
+                        <span className="text-[10px] font-bold uppercase">{isUploading ? 'Uploader...' : 'Skift Foto'}</span>
                         <input type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={(e) => handleFileUpload(e, selectedMember.id)} />
                     </label>
                   </div>
                   
                   <h2 className="text-4xl font-bold serif text-[#2d2416] mb-1 leading-tight">{selectedMember.name}</h2>
-                  <p className="text-[#8b7355] text-sm italic font-medium mb-4">
+                  <p className="text-[#8b7355] text-xs italic font-medium mb-4">
                     {getParentText(selectedMember)}
                   </p>
                   
-                  <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-[#f5f1e8] rounded-full text-[11px] font-bold text-[#8b7355] border border-[#d4c5b0]">
+                  <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-[#f5f1e8] rounded-full text-[10px] font-black text-[#8b7355] border border-[#d4c5b0] uppercase tracking-tighter">
                       {selectedMember.birthDate || '????'} — {selectedMember.deathDate || 'nu'}
                   </div>
                 </div>
                 
-                <div className="mt-10 pt-8 border-t border-gray-100 grid grid-cols-1 gap-4 text-left">
+                <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-1 gap-4 text-left">
                   <div>
-                    <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-[0.2em] mb-1">Fødested</h3>
+                    <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Fødested</h3>
                     <p className="text-[#2d2416] text-sm font-medium italic">
-                      {selectedMember.birthPlace || "Ukendt"}
+                      {selectedMember.birthPlace || "Ikke angivet"}
                     </p>
                   </div>
                   {selectedMember.deathDate && (
                     <div>
-                      <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-[0.2em] mb-1">Begravet</h3>
+                      <h3 className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1">Hvilested</h3>
                       <p className="text-[#2d2416] text-sm font-medium italic">
-                        {selectedMember.burialPlace || "Ukendt"}
+                        {selectedMember.burialPlace || "Ikke angivet"}
                       </p>
                     </div>
                   )}
@@ -186,32 +184,29 @@ const App: React.FC = () => {
             {selectedMarriage && (
               <div className="p-10">
                 <div className="text-center mb-8">
-                  <div className="w-16 h-16 bg-[#fffcf5] rounded-full flex items-center justify-center mx-auto border border-[#d4af37] shadow-sm mb-4">
-                    <span className="text-3xl">💍</span>
+                  <div className="w-16 h-16 bg-[#fdfbf7] rounded-full flex items-center justify-center mx-auto border border-[#d4af37] shadow-sm mb-4">
+                    <span className="text-2xl">💍</span>
                   </div>
-                  <h2 className="text-3xl font-bold serif text-[#2d2416]">Vielse</h2>
-                  {selectedMarriage.divorced && (
-                    <span className="inline-block mt-2 px-3 py-1 bg-red-50 text-red-600 text-[11px] font-semibold rounded-full tracking-tight">Skilt</span>
-                  )}
+                  <h2 className="text-3xl font-bold serif text-[#2d2416]">Slægtens Forening</h2>
                 </div>
                 
                 <div className="space-y-6">
                   <div className="bg-[#fcfaf7] p-6 rounded-[2rem] border border-[#d4c5b0]">
-                    <div className="flex flex-col items-center text-[#2d2416] font-bold serif text-lg gap-2">
-                      <div className="text-center">{MEMBERS.find(m => m.id === selectedMarriage.husbandId)?.name}</div>
-                      <div className="text-[#d4af37] text-sm">&</div>
-                      <div className="text-center">{MEMBERS.find(m => m.id === selectedMarriage.wifeId)?.name}</div>
+                    <div className="flex flex-col items-center text-[#2d2416] font-bold serif text-lg gap-2 text-center">
+                      <div>{MEMBERS.find(m => m.id === selectedMarriage.husbandId)?.name}</div>
+                      <div className="text-[#d4af37] text-sm italic">&</div>
+                      <div>{MEMBERS.find(m => m.id === selectedMarriage.wifeId)?.name}</div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-5 rounded-2xl">
-                      <p className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1 text-center">Dato</p>
-                      <p className="text-sm font-bold text-[#2d2416] text-center">{selectedMarriage.date || 'Ukendt'}</p>
+                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                      <p className="text-[8px] font-black text-[#8b7355] uppercase tracking-widest mb-1 text-center">Dato</p>
+                      <p className="text-xs font-bold text-[#2d2416] text-center">{selectedMarriage.date || 'Ukendt'}</p>
                     </div>
-                    <div className="bg-gray-50 p-5 rounded-2xl">
-                      <p className="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1 text-center">Sted</p>
-                      <p className="text-sm font-bold text-[#2d2416] text-center truncate" title={selectedMarriage.location}>{selectedMarriage.location || 'Ikke angivet'}</p>
+                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                      <p className="text-[8px] font-black text-[#8b7355] uppercase tracking-widest mb-1 text-center">Sted</p>
+                      <p className="text-xs font-bold text-[#2d2416] text-center truncate">{selectedMarriage.location || 'Ukendt'}</p>
                     </div>
                   </div>
                 </div>
@@ -221,9 +216,9 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3">
-        <div className="bg-[#2d2416]/90 text-white px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md shadow-2xl border border-white/10">
-            Navigér ved at trække & zoome • Tryk på navne for arkiv
+      <footer className="absolute bottom-8 left-0 right-0 pointer-events-none flex justify-center">
+        <div className="bg-[#2d2416]/80 text-white px-6 py-2.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] backdrop-blur-md shadow-2xl border border-white/10">
+            Træk for at panorere • Scroll for at zoome
         </div>
       </footer>
     </div>
