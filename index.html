@@ -1,14 +1,17 @@
-
 <!DOCTYPE html>
 <html lang="da">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stamtræ - Christensen Slægten</title>
+    <title>Slægten Christensen - Stamtræ</title>
+    
+    <!-- External Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;900&display=swap" rel="stylesheet">
+
     <style>
         :root {
             --parchment: #f5f1e8;
@@ -21,13 +24,9 @@
             background-color: var(--parchment);
             color: var(--ink);
             overflow: hidden;
+            margin: 0;
         }
         h1, h2, h3, .serif { font-family: 'Cormorant Garamond', serif; }
-        
-        .family-unit circle { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .family-unit:hover circle:not(.marriage-ring) { transform: scale(1.15); stroke-width: 3px; stroke: var(--ink); }
-        
-        .marriage-ring:hover { transform: scale(1.4); }
         
         .link { fill: none; stroke: var(--sepia); stroke-opacity: 0.25; stroke-width: 1.5px; }
         
@@ -37,26 +36,524 @@
             pointer-events: none;
             opacity: 0.05;
             background-image: url('https://www.transparenttextures.com/patterns/paper-fibers.png');
-            z-index: 50;
+            z-index: 100;
         }
 
-        /* Hide scrollbars but keep functionality */
-        ::-webkit-scrollbar { display: none; }
+        .node-group circle { transition: all 0.3s ease; }
+        .node-group:hover circle:not(.marriage-ring-bg) { transform: scale(1.1); stroke-width: 4px; }
+
+        #app-container { height: 100vh; width: 100vw; position: relative; }
+        .hidden { display: none !important; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
     </style>
 <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "d3": "https://esm.sh/d3@^7.9.0"
+    "d3": "https://esm.sh/d3@^7.9.0",
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
 </head>
 <body>
     <div class="parchment-overlay"></div>
-    <div id="root"></div>
+
+    <div id="app-container">
+        <!-- LANDING PAGE -->
+        <div id="view-landing" class="fixed inset-0 w-full overflow-y-auto z-10 bg-[#f5f1e8]">
+            <div class="min-h-full w-full flex flex-col items-center p-8">
+                <div class="max-w-5xl w-full flex flex-col items-center text-center space-y-12 py-12 md:py-24">
+                    <div class="space-y-4">
+                        <h1 class="text-6xl md:text-8xl font-bold serif text-[#2d2416] tracking-tight">Slægten Christensen</h1>
+                        <p class="text-xl md:text-2xl text-[#8b7355] italic font-medium serif border-t border-b border-[#d4c5b0] py-4 px-8 inline-block">
+                            En rejse gennem generationer fra Binderup
+                        </p>
+                    </div>
+
+                    <div class="w-full max-w-2xl">
+                        <button onclick="switchView('full')" class="w-full group relative bg-white/80 backdrop-blur-sm border-2 border-[#d4af37] p-12 rounded-[3rem] shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+                            <div class="mb-6 inline-flex w-20 h-20 bg-[#f5f1e8] rounded-full items-center justify-center text-4xl group-hover:scale-110 transition-transform">🌳</div>
+                            <h2 class="text-4xl font-bold serif text-[#2d2416] mb-3">Det Fulde Stamtræ</h2>
+                            <p class="text-base text-[#8b7355] font-medium leading-relaxed">
+                                Udforsk hele slægten fra Helga og Martin frem til i dag
+                            </p>
+                        </button>
+                    </div>
+
+                    <div class="w-full space-y-8 pt-8">
+                        <div class="flex items-center gap-6">
+                            <div class="h-px flex-1 bg-[#d4c5b0]"></div>
+                            <h3 class="text-sm font-black text-[#8b7355] uppercase tracking-[0.4em]">Udforsk Grene</h3>
+                            <div class="h-px flex-1 bg-[#d4c5b0]"></div>
+                        </div>
+
+                        <div id="branch-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            <!-- Branch buttons injected here -->
+                        </div>
+                    </div>
+
+                    <div class="text-[10px] text-[#8b7355] font-bold uppercase tracking-widest pt-12 border-t border-[#d4c5b0] w-full max-w-md opacity-40">
+                        Digitalt Slægtsarkiv • Binderup • 2025
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TREE VIEW -->
+        <div id="view-tree" class="hidden fixed inset-0 flex flex-col overflow-hidden bg-[#f5f1e8]">
+            <header class="absolute top-0 left-0 right-0 p-6 z-20 pointer-events-none flex justify-between items-start">
+                <button onclick="switchView('landing')" class="pointer-events-auto bg-white/80 backdrop-blur-md px-6 py-3 rounded-full border border-[#d4c5b0] shadow-lg flex items-center gap-3 group hover:border-[#d4af37] transition-all">
+                    <span class="text-xl group-hover:-translate-x-1 transition-transform">←</span>
+                    <span class="text-[10px] font-black text-[#8b7355] uppercase tracking-widest">Tilbage</span>
+                </button>
+                <div class="pointer-events-auto bg-white/80 backdrop-blur-md px-5 py-3 rounded-full border border-[#d4c5b0] shadow-lg flex items-center gap-3">
+                    <span class="w-2 h-2 rounded-full bg-[#d4af37]"></span>
+                    <span id="tree-title" class="text-[10px] font-black text-[#8b7355] uppercase tracking-tighter">Hele Slægten</span>
+                </div>
+            </header>
+
+            <div id="svg-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+            <footer class="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none z-20">
+                <div class="bg-[#2d2416]/90 text-white px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md shadow-2xl border border-white/10">
+                    Navigér ved at trække & zoome • Tryk på navne for detaljer
+                </div>
+            </footer>
+        </div>
+
+        <!-- MODALS -->
+        <div id="modal-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-md" onclick="closeModal()">
+            <div id="modal-content" class="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border-2 border-[#d4af37] relative" onclick="event.stopPropagation()">
+                <button onclick="closeModal()" class="absolute top-6 right-6 w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-900 transition-all">✕</button>
+                <div id="modal-body" class="p-10"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const MARRIAGES = [
+            { id: 'U0', husbandId: 'martin', wifeId: 'helga', date: '08.02.1928', location: 'Testrup', status: 'Ophørte ved død' },
+            { id: 'U1', husbandId: 'calle', wifeId: 'ingrid', date: '01.05.1953', location: 'Binderup Kirke' },
+            { id: 'U2', husbandId: 'iver', wifeId: 'anna', date: '01.05.1953', location: 'Binderup Kirke' },
+            { id: 'U2A', husbandId: 'kaj', wifeId: 'bitten', type: 'Papirløst' },
+            { id: 'U3', husbandId: 'kris', wifeId: 'annic', date: '09.10.1955' },
+            { id: 'U3A', husbandId: 'ivan', wifeId: 'annig', type: 'Papirløst' },
+            { id: 'U3B', husbandId: 'chrb', wifeId: 'lene', date: '13.05.1978' },
+            { id: 'U3C', husbandId: 'oleo', wifeId: 'piab', date: '11.04.2004' },
+            { id: 'U3D', husbandId: 'henriko', wifeId: 'kirst', date: '29.04.1995' },
+            { id: 'U4', husbandId: 'svend', wifeId: 'edi', date: '06.05.1955', location: 'Binderup Kirke' },
+            { id: 'U4A', husbandId: 'johnp', wifeId: 'rita', date: '05.06.1976', location: 'Fjelsø Kirke' },
+            { id: 'U4B', husbandId: 'jang', wifeId: 'elinj', date: '11.02.1984', location: 'Suldrup Kirke' },
+            { id: 'U4C', husbandId: 'nielsk', wifeId: 'hellen', date: '13.07.2001', location: 'Aars Rådhus' },
+            { id: 'U4D', husbandId: 'michaelk', wifeId: 'bentek', date: '22.07.1995', location: 'Durup Kirke' },
+            { id: 'U5', husbandId: 'andr', wifeId: 'astrid', date: '22.07.1961' },
+            { id: 'U5A', husbandId: 'kurt', wifeId: 'alex', date: '09.07.2005' },
+            { id: 'U5B', husbandId: 'carstenb', wifeId: 'bodil', date: '23.06.1995' },
+            { id: 'U7', husbandId: 'bent', wifeId: 'elly', date: '15.05.1976', location: 'Haverslev Kirke' },
+            { id: 'U7A', husbandId: 'jorgen', wifeId: 'birgit', date: '10.05.2000', location: 'Vroue Kirke', divorced: true },
+            { id: 'U7A1', husbandId: 'christ', wifeId: 'amalie', date: '21.03.2025' },
+            { id: 'U7B', husbandId: 'morten', wifeId: 'lisbeth', date: '26.08.2000', divorced: true },
+            { id: 'U7C', husbandId: 'jenso', wifeId: 'karina', date: '30.08.2003' }
+        ];
+
+        const MEMBERS = [
+            { id: 'helga', name: 'Helga Nielsen Pedersen', birthDate: '05.06.1905', deathDate: '26.09.1969', gender: 'female', burialPlace: 'Binderup Kirkegård' },
+            { id: 'martin', name: 'Martin Christensen', birthDate: '01.05.1897', deathDate: '04.07.1985', gender: 'male', burialPlace: 'Binderup Kirkegård' },
+            { id: 'ingrid', parentId: 'U0', name: 'Ingrid Christensen', birthDate: '22.02.1928', deathDate: '10.03.1995', gender: 'female' },
+            { id: 'calle', name: 'Calle Schrøder', birthDate: '06.04.1926', deathDate: '06.12.1988', gender: 'male' },
+            { id: 'anna', parentId: 'U0', name: 'Anna Christensen', birthDate: '10.05.1929', deathDate: '20.11.2014', gender: 'female' },
+            { id: 'iver', name: 'Iver Larsen', birthDate: '15.06.1918', gender: 'male' },
+            { id: 'kris', parentId: 'U0', name: 'Kristen Christensen', birthDate: '12.10.1931', deathDate: '06.06.2009', gender: 'male' },
+            { id: 'annic', name: 'Anni Christensen', birthDate: '28.04.1935', gender: 'female' },
+            { id: 'edi', parentId: 'U0', name: 'Edith Christensen', birthDate: '10.02.1934', deathDate: '15.09.2011', gender: 'female' },
+            { id: 'svend', name: 'Svend Erik Jensen', birthDate: '02.05.1932', deathDate: '20.11.2024', gender: 'male' },
+            { id: 'andr', parentId: 'U0', name: 'Andreas Christensen', birthDate: '20.10.1935', deathDate: '04.11.2009', gender: 'male' },
+            { id: 'astrid', name: 'Astrid', birthDate: '30.07.1938', deathDate: '24.07.1993', gender: 'female' },
+            { id: 'tag', parentId: 'U0', name: 'Tage Christensen', birthDate: '11.02.1939', deathDate: '05.04.2000', gender: 'male' },
+            { id: 'inger', name: 'Inger Kragelund', birthDate: '30.08.1934', gender: 'female' },
+            { id: 'bent', parentId: 'U0', name: 'Bent Christensen', birthDate: '25.10.1944', gender: 'male' },
+            { id: 'elly', name: 'Elly Andersen', birthDate: '15.12.1947', gender: 'female' },
+            { id: 'tove', parentId: 'U2', name: 'Tove Larsen', birthDate: '04.06.1955', gender: 'female' },
+            { id: 'kaj', parentId: 'U2', name: 'Kaj Larsen', birthDate: '16.04.1958', gender: 'male' },
+            { id: 'bitten', name: 'Bitten Glenstrup Otte', birthDate: '28.03.1961', gender: 'female' },
+            { id: 'annemette', parentId: 'tove', name: 'Anne Mette', birthDate: '01.01.1984', gender: 'female' },
+            { id: 'line', parentId: 'U2A', name: 'Line Hoff Nyby', birthDate: '01.02.1990', gender: 'female' },
+            { id: 'lykke', parentId: 'U2A', name: 'Lykke Glenstrup Larsen', birthDate: '20.07.1992', gender: 'female' },
+            { id: 'ivan', parentId: 'U3', name: 'Ivan Christensen', birthDate: '17.05.1956', gender: 'male' },
+            { id: 'annig', name: 'Anni Gamskjær', birthDate: '10.07.1957', gender: 'female' },
+            { id: 'lene', parentId: 'U3', name: 'Lene Christensen', birthDate: '18.07.1958', gender: 'female' },
+            { id: 'chrb', name: 'Christian Bundgaard', birthDate: '27.04.1955', gender: 'male' },
+            { id: 'carsc', parentId: 'U3', name: 'Carsten Christensen', birthDate: '23.03.1965', gender: 'male' },
+            { id: 'kirst', parentId: 'U3', name: 'Kirsten Christensen', birthDate: '27.11.1966', gender: 'female' },
+            { id: 'henriko', name: 'Henrik Olsen', birthDate: '16.01.1956', gender: 'male' },
+            { id: 'helleb', parentId: 'U3B', name: 'Helle Bundgaard', birthDate: '26.01.1975', gender: 'female' },
+            { id: 'piab', parentId: 'U3B', name: 'Pia Bundgaard', birthDate: '09.02.1978', gender: 'female' },
+            { id: 'oleo', name: 'Ole Olesen', birthDate: '26.01.1974', gender: 'male' },
+            { id: 'martb', parentId: 'U3B', name: 'Martin Bundgaard', birthDate: '21.09.1980', gender: 'male' },
+            { id: 'dortb', parentId: 'U3B', name: 'Dorte Bundgaard', birthDate: '28.10.1984', gender: 'female' },
+            { id: 'katrineo', parentId: 'U3C', name: 'Katrine Olesen', birthDate: '27.01.2007', gender: 'female' },
+            { id: 'teiso', parentId: 'U3C', name: 'Teis Olesen', birthDate: '27.01.2007', gender: 'male' },
+            { id: 'rita', parentId: 'U4', name: 'Rita Jensen', birthDate: '26.11.1955', gender: 'female' },
+            { id: 'johnp', name: 'John Peter Poulsen', birthDate: '05.06.1946', gender: 'male' },
+            { id: 'elinj', parentId: 'U4', name: 'Elin Jensen', birthDate: '16.03.1958', gender: 'female' },
+            { id: 'jang', name: 'Jan Grønhøj', gender: 'male' },
+            { id: 'nielsk', parentId: 'U4', name: 'Niels Kristian Jensen', birthDate: '19.04.1961', gender: 'male' },
+            { id: 'hellen', name: 'Helle Nielsen', gender: 'female' },
+            { id: 'michaelk', parentId: 'U4', name: 'Mikael Kjærsgaard', birthDate: '14.04.1965', gender: 'male' },
+            { id: 'bentek', name: 'Bente Kjærsgaard', gender: 'female' },
+            { id: 'karinap', parentId: 'U4A', name: 'Karina Beg Poulsen', birthDate: '12.12.1978', gender: 'female' },
+            { id: 'heinrp', parentId: 'U4A', name: 'Heinrich Beg Poulsen', birthDate: '15.12.1981', gender: 'male' },
+            { id: 'natasjap', parentId: 'U4A', name: 'Natasja Beg Poulsen', birthDate: '12.10.2001', gender: 'female' },
+            { id: 'anittag', parentId: 'U4B', name: 'Anitta Grønhøj', birthDate: '16.12.1981', gender: 'female' },
+            { id: 'jonasg', parentId: 'U4B', name: 'Jonas Grønhøj', birthDate: '21.01.1986', gender: 'male' },
+            { id: 'heleneg', parentId: 'U4B', name: 'Helene Grønhøj', birthDate: '11.01.1989', gender: 'female' },
+            { id: 'runeg', parentId: 'U4B', name: 'Rune Grønhøj', birthDate: '05.12.1996', gender: 'male' },
+            { id: 'jimmi', parentId: 'U4C', name: 'Jimmi Julian Jensen', birthDate: '02.02.1996', gender: 'male' },
+            { id: 'chrisj', parentId: 'U4C', name: 'Christina Jensen', birthDate: '30.10.1998', gender: 'female' },
+            { id: 'anittan', parentId: 'U4C', name: 'Anitta Normo', birthDate: '13.07.1886', gender: 'female' },
+            { id: 'dennisk', parentId: 'U4D', name: 'Dennis Kjærsgaard', birthDate: '19.12.1991', gender: 'male' },
+            { id: 'rasmusk', parentId: 'U4D', name: 'Rasmus Kjærsgaard', birthDate: '17.10.1993', gender: 'male' },
+            { id: 'ceciliak', parentId: 'U4D', name: 'Cecilia Kjærsgaard', birthDate: '09.02.1999', gender: 'female' },
+            { id: 'kurt', parentId: 'U5', name: 'Kurt Christensen', birthDate: '20.09.1963', gender: 'male' },
+            { id: 'alex', name: 'Alexandra', gender: 'female' },
+            { id: 'bodil', parentId: 'U5', name: 'Bodil Christensen', birthDate: '25.03.1969', gender: 'female' },
+            { id: 'carstenb', name: 'Carsten Becker', gender: 'male' },
+            { id: 'alina', parentId: 'U5A', name: 'Alina Christensen', birthDate: '1991', gender: 'female' },
+            { id: 'andersb', parentId: 'U5B', name: 'Anders Becker', birthDate: '06.01.1996', gender: 'male' },
+            { id: 'astridb', parentId: 'U5B', name: 'Astrid Becker', birthDate: '16.12.1999', gender: 'female' },
+            { id: 'antonb', parentId: 'U5B', name: 'Anton Becker', gender: 'male' },
+            { id: 'birgit', parentId: 'U7', name: 'Birgit Christensen', birthDate: '14.03.1973', gender: 'female' },
+            { id: 'jorgen', name: 'Jørgen Jokumsen', birthDate: '06.03.1967', gender: 'male' },
+            { id: 'lisbeth', parentId: 'U7', name: 'Lisbeth Christensen', birthDate: '07.06.1974', gender: 'female' },
+            { id: 'morten', name: 'Morten Gedsted Hansen', birthDate: '04.12.1970', gender: 'male' },
+            { id: 'jenso', parentId: 'U7', name: 'Jens Ove Christensen', birthDate: '14.04.1977', gender: 'male' },
+            { id: 'karina', name: 'Karina Sneftrup', birthDate: '07.02.1977', gender: 'female' },
+            { id: 'helgal', parentId: 'U7', name: 'Helga Linda Christensen', birthDate: '04.11.1978', gender: 'female' },
+            { id: 'amalie', parentId: 'U7A', name: 'Amalie Teglgaard', birthDate: '08.05.1999', gender: 'female' },
+            { id: 'christ', name: 'Christian Teglgaard', birthDate: '05.03.1998', gender: 'male' },
+            { id: 'rasmusj', parentId: 'U7A', name: 'Rasmus Jokumsen', birthDate: '24.05.2001', gender: 'male' },
+            { id: 'madsj', parentId: 'U7A', name: 'Mads Jokumsen', birthDate: '29.05.2003', gender: 'male' },
+            { id: 'lauraj', parentId: 'U7A', name: 'Laura Jokumsen', birthDate: '22.04.2005', gender: 'female' },
+            { id: 'mariet', parentId: 'U7A1', name: 'Marie My Teglgaard', birthDate: '16.06.2022', gender: 'female' },
+            { id: 'johannest', parentId: 'U7A1', name: 'Johannes Teglgaard', birthDate: '30.11.2025', gender: 'male' },
+            { id: 'camilla', parentId: 'U7B', name: 'Camilla Hansen', birthDate: '24.05.1995', gender: 'female' },
+            { id: 'cathrine', parentId: 'U7B', name: 'Cathrine Hansen', birthDate: '30.03.1997', gender: 'female' },
+            { id: 'cecilie', parentId: 'U7B', name: 'Cecilie Hansen', birthDate: '19.03.1999', gender: 'female' },
+            { id: 'casper', parentId: 'U7B', name: 'Casper Hansen', birthDate: '04.02.2002', gender: 'male' },
+            { id: 'phillipa', parentId: 'lisbeth', name: 'Phillipa Sofia Østergaard', birthDate: '07.05.2014', gender: 'female' },
+            { id: 'selma', parentId: 'lisbeth', name: 'Selma Olivia Østergaard', birthDate: '23.12.2015', gender: 'female' },
+            { id: 'jonassc', parentId: 'U7C', name: 'Jonas Sneftrup Christensen', birthDate: '30.05.2001', gender: 'male' },
+            { id: 'lukassc', parentId: 'U7C', name: 'Lukas Sneftrup Christensen', birthDate: '16.03.2004', gender: 'male' },
+            { id: 'eliassc', parentId: 'U7C', name: 'Elias Sneftrup Christensen', birthDate: '19.05.2011', gender: 'male' },
+            { id: 'frederik', parentId: 'helgal', name: 'Frederik Christensen', birthDate: '04.09.2016', gender: 'male' },
+            { id: 'magnus', parentId: 'helgal', name: 'Magnus Christensen', birthDate: '18.05.2018', gender: 'male' }
+        ];
+
+        // --- STATE ---
+        let currentView = 'landing';
+        let currentRootId = 'helga';
+        let customPhotos = JSON.parse(localStorage.getItem('christensen_photos') || '{}');
+
+        // --- UTILS ---
+        function getMember(id) { return MEMBERS.find(m => m.id === id); }
+        function getMarriage(id) { return MARRIAGES.find(m => m.id === id); }
+
+        function buildHierarchy(descendantId) {
+            const person = getMember(descendantId);
+            if (!person) return null;
+
+            const marriage = MARRIAGES.find(m => m.husbandId === descendantId || m.wifeId === descendantId);
+            const partnerId = marriage ? (marriage.husbandId === descendantId ? marriage.wifeId : marriage.husbandId) : null;
+            const partner = partnerId ? getMember(partnerId) : undefined;
+
+            const unit = {
+                id: person.id,
+                descendant: person,
+                partner: partner,
+                marriage: marriage,
+                children: []
+            };
+
+            const marriageChildren = marriage ? MEMBERS.filter(mem => mem.parentId === marriage.id) : [];
+            const directChildren = MEMBERS.filter(mem => mem.parentId === descendantId);
+            const allChildren = [...new Set([...marriageChildren, ...directChildren])];
+
+            allChildren.forEach(child => {
+                const node = buildHierarchy(child.id);
+                if (node) unit.children.push(node);
+            });
+
+            return unit;
+        }
+
+        // --- UI RENDERERS ---
+        function switchView(view, rootId = 'helga') {
+            currentView = view;
+            currentRootId = rootId;
+
+            if (view === 'landing') {
+                document.getElementById('view-landing').classList.remove('hidden');
+                document.getElementById('view-tree').classList.add('hidden');
+            } else {
+                document.getElementById('view-landing').classList.add('hidden');
+                document.getElementById('view-tree').classList.remove('hidden');
+                
+                const member = getMember(rootId);
+                const title = rootId === 'helga' ? 'Hele Slægten' : `Gren: ${member ? member.name.split(' ')[0] : 'Ukendt'}`;
+                document.getElementById('tree-title').textContent = title;
+                renderTree();
+            }
+        }
+
+        function renderBranchGrid() {
+            const grid = document.getElementById('branch-grid');
+            grid.innerHTML = '';
+            
+            const children = MEMBERS.filter(m => m.parentId === 'U0');
+            children.forEach(child => {
+                const btn = document.createElement('button');
+                btn.className = "flex flex-col items-center p-6 rounded-[2.5rem] bg-white/50 border border-[#d4c5b0]/50 hover:bg-white hover:border-[#d4af37] hover:shadow-lg transition-all group";
+                btn.onclick = () => switchView('branch', child.id);
+                btn.innerHTML = `
+                    <div class="w-14 h-14 rounded-full bg-[#fdfdfd] border-2 border-[#d4c5b0] mb-4 flex items-center justify-center text-xl group-hover:border-[#d4af37] transition-colors">🌿</div>
+                    <span class="text-sm font-bold text-[#2d2416] serif leading-tight px-2">${child.name}</span>
+                `;
+                grid.appendChild(btn);
+            });
+        }
+
+        function renderTree() {
+            const container = document.getElementById('svg-container');
+            container.innerHTML = '';
+            
+            const width = 6000;
+            const height = 3000;
+            const margin = { top: 200, right: 300, bottom: 200, left: 300 };
+
+            const svg = d3.select(container).append('svg')
+                .attr('width', '100%')
+                .attr('height', '100%')
+                .attr('viewBox', `0 0 ${width} ${height}`);
+
+            const gMain = svg.append('g');
+            const zoom = d3.zoom()
+                .scaleExtent([0.05, 3])
+                .on('zoom', (event) => gMain.attr('transform', event.transform));
+            
+            svg.call(zoom);
+
+            const rootData = buildHierarchy(currentRootId);
+            if (!rootData) return;
+
+            const root = d3.hierarchy(rootData);
+            const treeLayout = d3.tree().nodeSize([450, 500]);
+            treeLayout(root);
+
+            const linkGen = d3.linkVertical().x(d => d.x).y(d => d.y);
+            
+            gMain.append('g')
+                .attr('transform', `translate(${width/2}, ${margin.top})`)
+                .selectAll('path')
+                .data(root.links())
+                .enter().append('path')
+                .attr('class', 'link')
+                .attr('d', linkGen);
+
+            const nodes = gMain.append('g')
+                .attr('transform', `translate(${width/2}, ${margin.top})`)
+                .selectAll('.node-group')
+                .data(root.descendants())
+                .enter().append('g')
+                .attr('class', 'node-group')
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+
+            // Main Person
+            const descNode = nodes.append('g')
+                .style('cursor', 'pointer')
+                .on('click', (e, d) => showMemberModal(d.data.descendant));
+
+            descNode.append('circle')
+                .attr('r', 35)
+                .style('fill', d => d.data.descendant.deathDate ? '#e5e1d8' : '#fff')
+                .style('stroke', '#d4af37')
+                .style('stroke-width', '3px');
+
+            descNode.append('text')
+                .attr('dy', '55')
+                .attr('text-anchor', 'middle')
+                .attr('class', 'serif text-[13px] font-black')
+                .style('fill', '#2d2416')
+                .text(d => d.data.descendant.name);
+
+            // Spouse
+            const partnerNodes = nodes.filter(d => !!d.data.partner);
+            
+            partnerNodes.append('line')
+                .attr('x1', 35).attr('y1', 0).attr('x2', 115).attr('y2', 0)
+                .style('stroke', '#d4af37').style('stroke-width', '1.5px').style('stroke-dasharray', '4,2');
+
+            const spouseNode = partnerNodes.append('g')
+                .attr('transform', 'translate(150, 0)')
+                .style('cursor', 'pointer')
+                .on('click', (e, d) => showMemberModal(d.data.partner));
+
+            spouseNode.append('circle')
+                .attr('r', 30)
+                .style('fill', d => d.data.partner.deathDate ? '#f0eee9' : '#fff')
+                .style('stroke', '#8b7355').style('stroke-opacity', '0.6').style('stroke-width', '2px');
+
+            spouseNode.append('text')
+                .attr('dy', '50')
+                .attr('text-anchor', 'middle')
+                .attr('class', 'serif text-[11px] font-bold opacity-70')
+                .text(d => d.data.partner.name);
+
+            // Marriage Ring
+            const ringGroup = partnerNodes.append('g')
+                .attr('transform', 'translate(75, 0)')
+                .style('cursor', 'pointer')
+                .on('click', (e, d) => showMarriageModal(d.data.marriage));
+
+            ringGroup.append('circle')
+                .attr('r', 14)
+                .attr('class', 'marriage-ring-bg')
+                .style('fill', '#fff').style('stroke', '#d4af37').style('stroke-opacity', '0.4');
+
+            ringGroup.append('text')
+                .attr('dy', '6').attr('text-anchor', 'middle').style('font-size', '16px').text('💍');
+
+            // Initial center
+            svg.call(zoom.transform, d3.zoomIdentity.translate(width/2 - 100, 150).scale(0.35));
+        }
+
+        // --- MODAL LOGIC ---
+        function showMemberModal(member) {
+            const modal = document.getElementById('modal-overlay');
+            const body = document.getElementById('modal-body');
+            
+            const photo = customPhotos[member.id] || null;
+            const parentText = getParentText(member);
+
+            body.innerHTML = `
+                <div class="flex flex-col items-center text-center">
+                  <div class="group relative w-32 h-32 rounded-full border-[5px] border-[#d4af37] p-1.5 mb-6 shadow-2xl bg-[#fdfdfd] overflow-hidden">
+                    ${photo ? `<img src="${photo}" class="w-full h-full object-cover rounded-full ${member.deathDate ? 'grayscale opacity-60' : ''}">` : `
+                        <div class="w-full h-full bg-gray-100 flex items-center justify-center rounded-full">
+                            <svg class="w-16 h-16 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        </div>
+                    `}
+                    <label class="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer transition-opacity rounded-full">
+                        <span class="text-[10px] font-bold uppercase">Upload Foto</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, '${member.id}')">
+                    </label>
+                  </div>
+                  
+                  <h2 class="text-4xl font-bold serif text-[#2d2416] mb-1 leading-tight">${member.name}</h2>
+                  <p class="text-[#8b7355] text-sm italic font-medium mb-4">${parentText || ''}</p>
+                  
+                  <div class="inline-flex items-center gap-3 px-4 py-1.5 bg-[#f5f1e8] rounded-full text-[11px] font-bold text-[#8b7355] border border-[#d4c5b0]">
+                      ${member.birthDate || '????'} — ${member.deathDate || 'nu'}
+                  </div>
+                </div>
+                
+                <div class="mt-10 pt-8 border-t border-gray-100 grid grid-cols-1 gap-4 text-left">
+                  <div>
+                    <h3 class="text-[9px] font-black text-[#8b7355] uppercase tracking-[0.2em] mb-1">Fødested</h3>
+                    <p class="text-[#2d2416] text-sm font-medium italic">${member.birthPlace || "Ukendt"}</p>
+                  </div>
+                  ${member.deathDate ? `
+                    <div>
+                      <h3 class="text-[9px] font-black text-[#8b7355] uppercase tracking-[0.2em] mb-1">Begravet</h3>
+                      <p class="text-[#2d2416] text-sm font-medium italic">${member.burialPlace || "Ukendt"}</p>
+                    </div>
+                  ` : ''}
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function showMarriageModal(marriage) {
+            if (!marriage) return;
+            const modal = document.getElementById('modal-overlay');
+            const body = document.getElementById('modal-body');
+            const h = getMember(marriage.husbandId);
+            const w = getMember(marriage.wifeId);
+
+            body.innerHTML = `
+                <div class="text-center mb-8">
+                  <div class="w-16 h-16 bg-[#fffcf5] rounded-full flex items-center justify-center mx-auto border border-[#d4af37] shadow-sm mb-4">
+                    <span class="text-3xl">💍</span>
+                  </div>
+                  <h2 class="text-3xl font-bold serif text-[#2d2416]">Vielse</h2>
+                  ${marriage.divorced ? `<span class="inline-block mt-2 px-3 py-1 bg-red-50 text-red-600 text-[11px] font-semibold rounded-full tracking-tight">Skilt</span>` : ''}
+                </div>
+                
+                <div class="space-y-6">
+                  <div class="bg-[#fcfaf7] p-6 rounded-[2rem] border border-[#d4c5b0]">
+                    <div class="flex flex-col items-center text-[#2d2416] font-bold serif text-lg gap-2">
+                      <div class="text-center">${h?.name || 'Ukendt'}</div>
+                      <div class="text-[#d4af37] text-sm">&</div>
+                      <div class="text-center">${w?.name || 'Ukendt'}</div>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-5 rounded-2xl">
+                      <p class="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1 text-center">Dato</p>
+                      <p class="text-sm font-bold text-[#2d2416] text-center">${marriage.date || 'Ukendt'}</p>
+                    </div>
+                    <div class="bg-gray-50 p-5 rounded-2xl">
+                      <p class="text-[9px] font-black text-[#8b7355] uppercase tracking-widest mb-1 text-center">Sted</p>
+                      <p class="text-sm font-bold text-[#2d2416] text-center truncate" title="${marriage.location}">${marriage.location || 'Ukendt'}</p>
+                    </div>
+                  </div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        function getParentText(member) {
+            if (!member.parentId) return null;
+            const prefix = member.gender === 'male' ? 'Søn af' : (member.gender === 'female' ? 'Datter af' : 'Barn af');
+            
+            const marriage = getMarriage(member.parentId);
+            if (marriage) {
+                const h = getMember(marriage.husbandId);
+                const w = getMember(marriage.wifeId);
+                return `${prefix} ${h?.name || '?'} & ${w?.name || '?'}`;
+            }
+            
+            const solo = getMember(member.parentId);
+            return solo ? `${prefix} ${solo.name}` : null;
+        }
+
+        function handlePhotoUpload(e, memberId) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    customPhotos[memberId] = reader.result;
+                    localStorage.setItem('christensen_photos', JSON.stringify(customPhotos));
+                    showMemberModal(getMember(memberId)); // Refresh
+                    renderTree(); // Refresh tree view background
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // --- INIT ---
+        window.onload = () => {
+            renderBranchGrid();
+        };
+    </script>
 </body>
 </html>
