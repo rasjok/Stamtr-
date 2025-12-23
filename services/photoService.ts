@@ -10,16 +10,24 @@ export const uploadMemberPhoto = async (memberId: string, file: File): Promise<s
     throw new Error("Firebase er ikke konfigureret korrekt.");
   }
 
-  const storageRef = ref(storage, `member_photos/${memberId}`);
-  await uploadBytes(storageRef, file);
-  const downloadURL = await getDownloadURL(storageRef);
-  
-  await setDoc(doc(db, 'photos', memberId), {
-    url: downloadURL,
-    updatedAt: new Date().toISOString()
-  });
-  
-  return downloadURL;
+  try {
+    const storageRef = ref(storage, `member_photos/${memberId}`);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    
+    await setDoc(doc(db, 'photos', memberId), {
+      url: downloadURL,
+      updatedAt: new Date().toISOString()
+    });
+    
+    return downloadURL;
+  } catch (error: any) {
+    console.error("Firestore upload error:", error);
+    if (error.code === 'storage/unauthorized') {
+      throw new Error("Adgang nægtet. Du skal opdatere dine Firebase Storage Rules.");
+    }
+    throw error;
+  }
 };
 
 /**
@@ -28,14 +36,20 @@ export const uploadMemberPhoto = async (memberId: string, file: File): Promise<s
 export const subscribeToPhotos = (callback: (photos: Record<string, string>) => void) => {
   if (!isFirebaseEnabled || !db) {
     console.warn("Firebase er deaktiveret - fotos synkroniseres ikke.");
-    return () => {}; // Return dummy unsubscribe
+    return () => {}; 
   }
+
+  // Vi logger dette så du kan se i "Inspicer -> Konsol" om din laptop rent faktisk forbinder
+  console.log("Forbinder til Firebase for at hente fotos...");
 
   return onSnapshot(collection(db, 'photos'), (snapshot) => {
     const photoMap: Record<string, string> = {};
     snapshot.forEach((doc) => {
       photoMap[doc.id] = doc.data().url;
     });
+    console.log(`Synkroniserede ${snapshot.size} fotos fra skyen.`);
     callback(photoMap);
+  }, (error) => {
+    console.error("Fejl ved hentning af fotos fra Firebase:", error);
   });
 };

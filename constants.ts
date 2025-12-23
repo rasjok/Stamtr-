@@ -146,12 +146,12 @@ export const MEMBERS: FamilyMember[] = [
   { id: 'johannest', parentId: 'U7A1', name: 'Johannes Teglgaard', birthDate: '30.11.2025', gender: 'male' },
 
   // Generation 4 - Bent branch (Lisbeth/Morten & Lisbeth Solo)
-  { id: 'camilla', parentId: 'U7B', name: 'Camilla Hansen', birthDate: '24.05.1995', gender: 'female' },
-  { id: 'cathrine', parentId: 'U7B', name: 'Cathrine Hansen', birthDate: '30.03.1997', gender: 'female' },
-  { id: 'cecilie', parentId: 'U7B', name: 'Cecilie Hansen', birthDate: '19.03.1999', gender: 'female' },
-  { id: 'casper', parentId: 'U7B', name: 'Casper Hansen', birthDate: '04.02.2002', gender: 'male' },
-  { id: 'phillipa', parentId: 'lisbeth', name: 'Phillipa Sofia Østergaard', birthDate: '07.05.2014', gender: 'female' },
-  { id: 'selma', parentId: 'lisbeth', name: 'Selma Olivia Østergaard', birthDate: '23.12.2015', gender: 'female' },
+  { id: 'camilla', parentId: 'U7B', name: 'Camilla Gedsted Hansen', birthDate: '24.05.1995', gender: 'female' },
+  { id: 'cathrine', parentId: 'U7B', name: 'Cathrine Gedsted Hansen', birthDate: '30.03.1997', gender: 'female' },
+  { id: 'cecilie', parentId: 'U7B', name: 'Cecilie Gedsted Hansen', birthDate: '19.03.1999', gender: 'female' },
+  { id: 'casper', parentId: 'U7B', name: 'Casper Gedsted Hansen', birthDate: '04.02.2002', gender: 'male' },
+  { id: 'phillipa', parentId: 'lisbeth', name: 'Phillipa Sofia Kvistgaard Østergaard', birthDate: '07.05.2014', gender: 'female' },
+  { id: 'selma', parentId: 'lisbeth', name: 'Selma Olivia Kvistgaard Østergaard', birthDate: '23.12.2015', gender: 'female' },
 
   // Generation 4 - Bent branch (Jens Ove/Karina)
   { id: 'jonassc', parentId: 'U7C', name: 'Jonas Sneftrup Christensen', birthDate: '30.05.2001', gender: 'male' },

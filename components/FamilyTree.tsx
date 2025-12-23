@@ -24,7 +24,6 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
   useEffect(() => {
     if (!svgRef.current || members.length === 0) return;
 
-    // Get current container size
     const bounds = svgRef.current.getBoundingClientRect();
     const svgWidth = bounds.width;
     const svgHeight = bounds.height;
@@ -73,7 +72,6 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
     if (!rootData) return;
 
     const root = d3.hierarchy(rootData);
-    // Large spacing for a classic family tree look
     const treeLayout = d3.tree<FamilyUnitNode>().nodeSize([450, 500]); 
     treeLayout(root);
 
@@ -91,7 +89,7 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
             .attr('width', 1)
             .attr('height', 1)
             .append('image')
-            .attr('xlink:href', customPhotos[person.id])
+            .attr('href', customPhotos[person.id]) // Brug 'href' i stedet for 'xlink:href'
             .attr('width', diameter)
             .attr('height', diameter)
             .attr('preserveAspectRatio', 'xMidYMid slice');
@@ -100,8 +98,6 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
     });
 
     const linkGen = d3.linkVertical<any, any>().x(d => d.x).y(d => d.y);
-    
-    // We remove the static translation from gMain and let zoom handle it
     const gContent = gMain.append("g");
 
     gContent.append("g")
@@ -193,12 +189,11 @@ const FamilyTree: React.FC<FamilyTreeProps> = ({
       .style("font-size", "16px")
       .text("💍");
 
-    // DYNAMIC CENTERING: Calculate the transform to center the root node
     const initialScale = 0.4;
     const initialTransform = d3.zoomIdentity
-      .translate(svgWidth / 2, 120) // Center horizontally, 120px from top
+      .translate(svgWidth / 2, 120)
       .scale(initialScale)
-      .translate(-root.x, -root.y); // Shift so the root is at the target point
+      .translate(-root.x, -root.y);
 
     svg.call(zoom.transform, initialTransform);
 

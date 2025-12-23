@@ -91,8 +91,8 @@ const App: React.FC = () => {
         </button>
 
         <div className="pointer-events-auto flex flex-col items-end gap-2">
-            <div className="bg-[#2d2416]/10 px-4 py-1.5 rounded-full border border-[#d4c5b0]/30 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-[#2d2416] uppercase">
+            <div className="bg-[#2d2416]/10 px-4 py-1.5 rounded-full border border-[#d4c5b0]/30 backdrop-blur-sm shadow-sm">
+                <span className="text-[9px] font-bold text-[#2d2416] uppercase tracking-wider">
                     {viewMode === 'full' ? 'Hele Slægten' : `Gren: ${MEMBERS.find(m => m.id === branchRootId)?.name.split(' ')[0]}`}
                 </span>
             </div>
